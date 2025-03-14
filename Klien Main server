@@ -2,7 +2,7 @@
 local bot_name = "Klien V5.5"  -- Name of your bot
 
 -- Hugging Face API Key
-local apiKey = "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"
+local apiKey = ""
 -- The model's API endpoint
 local apiUrl = "https://api-inference.huggingface.co/models/gpt2"
 
