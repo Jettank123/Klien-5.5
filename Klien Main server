@@ -1,8 +1,33 @@
-local bot_name = "Klien V5.5"  -- Updated version number
-local memory = { last_response = nil }
-local reputation = {}  -- Stores player reputation
-local admin = "Unknown_Signal"  -- Only this player can set reputation
-local last_spam_time = {}  -- Track last message time per user
+-- Hugging Face API Key
+local apiKey = "your_hugging_face_api_key_here"
+-- The model's API endpoint
+local apiUrl = "https://api-inference.huggingface.co/models/gpt2"
+
+-- Function to send text to Hugging Face API
+local function queryHuggingFace(inputText)
+    local headers = {
+        ["Authorization"] = "Bearer " .. apiKey
+    }
+    
+    local body = string.format('{"inputs": "%s"}', inputText)  -- JSON body
+    local response, error = http.post(apiUrl, body, {headers = headers})
+    
+    -- Handle error if the request fails
+    if error then
+        print("Error with API request: " .. error)
+        return "Sorry, something went wrong with the request."
+    end
+
+    -- Parse JSON response (you may need a JSON library for this)
+    local jsonResponse = textutils.unserializeJSON(response.body)
+
+    -- Check if the response has the expected data
+    if jsonResponse and jsonResponse[1] then
+        return jsonResponse[1].generated_text
+    else
+        return "Sorry, I couldn't understand that request."
+    end
+end
 
 -- Wrap the chatbox peripheral
 local chatbox = peripheral.wrap("top")
@@ -36,6 +61,38 @@ local intent_groups = {
     help = {"help", "commands", "what can you do", "available commands", "list abilities"}
 }
 
+-- Dictionary
+local dictionary = {
+    hello = "A greeting.",
+    goodbye = "A farewell expression.",
+    chatbot = "A program designed for conversation.",
+    lua = "A programming language.",
+    love = "A deep affection.",
+    friendship = "A mutual bond.",
+    knowledge = "Information gained through experience.",
+    computer = "A device for processing data.",
+    algorithm = "A step-by-step procedure for calculations.",
+    data = "Facts and statistics collected for reference.",
+    network = "A group of interconnected computers.",
+    software = "Programs and applications that run on a computer.",
+    hardware = "The physical components of a computer."
+}
+
+-- Help message listing Klien's capabilities
+local help_message = "I can do the following:\n"
+    .. "- Respond to greetings and farewells\n"
+    .. "- Tell you the current time\n"
+    .. "- Define words from the dictionary\n"
+    .. "- Roll a dice (d20)\n"
+    .. "- Play Russian Roulette\n"
+    .. "- Update myself\n"
+    .. "- Respond to direct messages\n"
+    .. "- Recognize when you call my name\n"
+    .. "- Say hello to a specified person\n"
+    .. "- Track and respond based on reputation\n"
+    .. "- Allow only Unknown_Signal to modify reputation\n"
+    .. "- List contents of the disk drive on my right"
+
 -- Function to send messages
 local function sendMessage(message)
     local success, err = pcall(function()
@@ -46,23 +103,7 @@ local function sendMessage(message)
     end
 end
 
--- Function to query the LLM
-local function queryLLM(input)
-    local url = "http://localhost:11434/api/generate"  -- Adjust for your local DeepSeek server or Hugging Face API endpoint
-    local body = '{"model": "deepseek/chat", "messages": [{"role": "user", "content": "' .. input .. '"}]}'
-    local headers = { ["Content-Type"] = "application/json" }
-
-    local response = http.post(url, body, headers)
-    if response then
-        local data = response.readAll()
-        response.close()
-        return data
-    else
-        return "Sorry, I'm having trouble reaching the LLM. Please try again later."
-    end
-end
-
--- Function to determine intent
+-- Updated getIntent function to use Hugging Face for generating responses
 local function getIntent(input, username)
     input = input:lower()
 
@@ -75,48 +116,17 @@ local function getIntent(input, username)
         last_spam_time[username] = current_time  
     end
 
+    -- Check if the query matches any of the intents and respond via Hugging Face API
     for intent, patterns in pairs(intent_groups) do
         for _, pattern in ipairs(patterns) do
             if string.find(input, pattern) then
-                if intent == "time" then
-                    return "Current time: " .. os.date("%X")
-                elseif intent == "update" then
-                    sendMessage("Updating Klien... Downloading new version.")
-                    os.sleep(1)
-                    shell.run("pastebin get GSjux0iY klien1.lua")  
-                    shell.run("rm klien.lua")
-                    shell.run("mv klien1.lua klien.lua")
-                    sendMessage("Update complete. Rebooting...")
-                    os.sleep(1)
-                    os.reboot()
-                elseif intent == "roll_dice" then
-                    return "Rolled: " .. math.random(1, 20)
-                elseif intent == "russian_roulette" then
-                    return "*Click* You survive... for now."
-                elseif intent == "dictionary" then
-                    local word = input:match("(%w+)$")
-                    if word then
-                        return getDefinition(word)
-                    end
-                elseif intent == "reputation" then
-                    return getReputation(username)
-                elseif intent == "list_disk" then
-                    return listDiskContents()
-                elseif intent == "help" then
-                    return help_message
-                elseif intent == "greetings" then
-                    return queryLLM("Say hello to " .. username .. " in a friendly way.")
-                elseif intent == "status" then
-                    return queryLLM("How are you doing today?")
-                elseif intent == "abilities" then
-                    return queryLLM("What can you do?")
-                elseif intent == "name" then
-                    return queryLLM("What is your name?")
-                end
-                return "Query recognized: " .. intent
+                -- Use Hugging Face for generating a response to any query
+                local botResponse = queryHuggingFace(input)
+                return botResponse
             end
         end
     end
+
     return "Input unclear."
 end
 
