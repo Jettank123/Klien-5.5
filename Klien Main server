@@ -1,0 +1,143 @@
+local bot_name = "Klien V5.5"  -- Updated version number
+local memory = { last_response = nil }
+local reputation = {}  -- Stores player reputation
+local admin = "Unknown_Signal"  -- Only this player can set reputation
+local last_spam_time = {}  -- Track last message time per user
+
+-- Wrap the chatbox peripheral
+local chatbox = peripheral.wrap("top")
+if not chatbox then
+    error("No chatbox found on top!")
+end
+
+-- Wrap the disk drive peripheral (right side)
+local diskDrive = peripheral.wrap("right")  
+if not diskDrive then
+    print("No disk drive found on the right!")  
+end
+
+-- List of inappropriate words (expand as needed)
+local blocked_words = { "dick", "bitch", "ass", "fuck", "shit" }
+
+-- **Expanded intent groups with more keyword variations**
+local intent_groups = {
+    greetings = {"hello", "hi", "hey", "yo", "sup", "hiya", "howdy", "greetings", "good day"},
+    farewell = {"bye", "goodbye", "see you", "later", "cya", "farewell", "take care", "see ya"},
+    status = {"how are you", "whats up", "how's it going", "how you doing", "you good", "everything okay", "how have you been"},
+    name = {"whats your name", "who are you", "your name", "what do I call you", "what are you called", "tell me your name"},
+    abilities = {"what can you do", "what do you do", "your functions", "what are you capable of", "tell me about yourself", "commands"},
+    time = {"what time is it", "tell me the time", "current time", "world time", "clock"},
+    update = {"update", "refresh", "new version", "patch", "upgrade"},
+    roll_dice = {"roll dice", "d20", "roll a d20", "dice roll", "random number"},
+    russian_roulette = {"russian roulette", "play roulette", "spin the chamber", "danger game"},
+    dictionary = {"define", "what does", "meaning of", "what is", "tell me about"},
+    reputation = {"what is my rep", "my reputation", "check rep", "how do you see me"},
+    list_disk = {"list disk", "disk contents", "check disk", "what's on the disk", "show files"},
+    help = {"help", "commands", "what can you do", "available commands", "list abilities"}
+}
+
+-- Function to send messages
+local function sendMessage(message)
+    local success, err = pcall(function()
+        chatbox.sendMessage(bot_name .. ": " .. message)
+    end)
+    if not success then
+        print("Error sending message: " .. err)
+    end
+end
+
+-- Function to query the LLM
+local function queryLLM(input)
+    local url = "http://localhost:11434/api/generate"  -- Adjust for your local DeepSeek server or Hugging Face API endpoint
+    local body = '{"model": "deepseek/chat", "messages": [{"role": "user", "content": "' .. input .. '"}]}'
+    local headers = { ["Content-Type"] = "application/json" }
+
+    local response = http.post(url, body, headers)
+    if response then
+        local data = response.readAll()
+        response.close()
+        return data
+    else
+        return "Sorry, I'm having trouble reaching the LLM. Please try again later."
+    end
+end
+
+-- Function to determine intent
+local function getIntent(input, username)
+    input = input:lower()
+
+    -- **Detect spam only for commands**
+    local current_time = os.clock()
+    if string.sub(input, 1, 6) == "klien " then
+        if last_spam_time[username] and (current_time - last_spam_time[username] < 3) then
+            return "Stop spamming commands, " .. username .. ". Try again later."
+        end
+        last_spam_time[username] = current_time  
+    end
+
+    for intent, patterns in pairs(intent_groups) do
+        for _, pattern in ipairs(patterns) do
+            if string.find(input, pattern) then
+                if intent == "time" then
+                    return "Current time: " .. os.date("%X")
+                elseif intent == "update" then
+                    sendMessage("Updating Klien... Downloading new version.")
+                    os.sleep(1)
+                    shell.run("pastebin get GSjux0iY klien1.lua")  
+                    shell.run("rm klien.lua")
+                    shell.run("mv klien1.lua klien.lua")
+                    sendMessage("Update complete. Rebooting...")
+                    os.sleep(1)
+                    os.reboot()
+                elseif intent == "roll_dice" then
+                    return "Rolled: " .. math.random(1, 20)
+                elseif intent == "russian_roulette" then
+                    return "*Click* You survive... for now."
+                elseif intent == "dictionary" then
+                    local word = input:match("(%w+)$")
+                    if word then
+                        return getDefinition(word)
+                    end
+                elseif intent == "reputation" then
+                    return getReputation(username)
+                elseif intent == "list_disk" then
+                    return listDiskContents()
+                elseif intent == "help" then
+                    return help_message
+                elseif intent == "greetings" then
+                    return queryLLM("Say hello to " .. username .. " in a friendly way.")
+                elseif intent == "status" then
+                    return queryLLM("How are you doing today?")
+                elseif intent == "abilities" then
+                    return queryLLM("What can you do?")
+                elseif intent == "name" then
+                    return queryLLM("What is your name?")
+                end
+                return "Query recognized: " .. intent
+            end
+        end
+    end
+    return "Input unclear."
+end
+
+-- Listen for chat messages
+local function listenForChat()
+    sendMessage("Klien online.")
+    while true do
+        local event, username, message = os.pullEvent("chat")
+        message = message:lower()
+
+        if message == "klien" then
+            sendMessage("Yes, " .. username .. "?")
+        elseif string.sub(message, 1, 6) == "klien " then
+            local query = string.sub(message, 7)
+            local response = getIntent(query, username)
+            if response then
+                sendMessage(response)
+            end
+        end
+    end
+end
+
+print(bot_name .. " is active. Listening for chat...")
+listenForChat()
