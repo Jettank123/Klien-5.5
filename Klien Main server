@@ -1,5 +1,8 @@
+-- Define bot name
+local bot_name = "Klien V5.5"  -- Name of your bot
+
 -- Hugging Face API Key
-local apiKey = "your_hugging_face_api_key_here"
+local apiKey = "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"
 -- The model's API endpoint
 local apiUrl = "https://api-inference.huggingface.co/models/gpt2"
 
@@ -34,6 +37,123 @@ local chatbox = peripheral.wrap("top")
 if not chatbox then
     error("No chatbox found on top!")
 end
+
+-- Wrap the disk drive peripheral (right side)
+local diskDrive = peripheral.wrap("right")  
+if not diskDrive then
+    print("No disk drive found on the right!")  
+end
+
+-- List of inappropriate words (expand as needed)
+local blocked_words = { "dick", "bitch", "ass", "fuck", "shit" }
+
+-- **Expanded intent groups with more keyword variations**
+local intent_groups = {
+    greetings = {"hello", "hi", "hey", "yo", "sup", "hiya", "howdy", "greetings", "good day"},
+    farewell = {"bye", "goodbye", "see you", "later", "cya", "farewell", "take care", "see ya"},
+    status = {"how are you", "whats up", "how's it going", "how you doing", "you good", "everything okay", "how have you been"},
+    name = {"whats your name", "who are you", "your name", "what do I call you", "what are you called", "tell me your name"},
+    abilities = {"what can you do", "what do you do", "your functions", "what are you capable of", "tell me about yourself", "commands"},
+    time = {"what time is it", "tell me the time", "current time", "world time", "clock"},
+    update = {"update", "refresh", "new version", "patch", "upgrade"},
+    roll_dice = {"roll dice", "d20", "roll a d20", "dice roll", "random number"},
+    russian_roulette = {"russian roulette", "play roulette", "spin the chamber", "danger game"},
+    dictionary = {"define", "what does", "meaning of", "what is", "tell me about"},
+    reputation = {"what is my rep", "my reputation", "check rep", "how do you see me"},
+    list_disk = {"list disk", "disk contents", "check disk", "what's on the disk", "show files"},
+    help = {"help", "commands", "what can you do", "available commands", "list abilities"}
+}
+
+-- Dictionary
+local dictionary = {
+    hello = "A greeting.",
+    goodbye = "A farewell expression.",
+    chatbot = "A program designed for conversation.",
+    lua = "A programming language.",
+    love = "A deep affection.",
+    friendship = "A mutual bond.",
+    knowledge = "Information gained through experience.",
+    computer = "A device for processing data.",
+    algorithm = "A step-by-step procedure for calculations.",
+    data = "Facts and statistics collected for reference.",
+    network = "A group of interconnected computers.",
+    software = "Programs and applications that run on a computer.",
+    hardware = "The physical components of a computer."
+}
+
+-- Help message listing Klien's capabilities
+local help_message = "I can do the following:\n"
+    .. "- Respond to greetings and farewells\n"
+    .. "- Tell you the current time\n"
+    .. "- Define words from the dictionary\n"
+    .. "- Roll a dice (d20)\n"
+    .. "- Play Russian Roulette\n"
+    .. "- Update myself\n"
+    .. "- Respond to direct messages\n"
+    .. "- Recognize when you call my name\n"
+    .. "- Say hello to a specified person\n"
+    .. "- Track and respond based on reputation\n"
+    .. "- Allow only Unknown_Signal to modify reputation\n"
+    .. "- List contents of the disk drive on my right"
+
+-- Function to send messages
+local function sendMessage(message)
+    local success, err = pcall(function()
+        chatbox.sendMessage(bot_name .. ": " .. message)
+    end)
+    if not success then
+        print("Error sending message: " .. err)
+    end
+end
+
+-- Updated getIntent function to use Hugging Face for generating responses
+local function getIntent(input, username)
+    input = input:lower()
+
+    -- **Detect spam only for commands**
+    local current_time = os.clock()
+    if string.sub(input, 1, 6) == "klien " then
+        if last_spam_time[username] and (current_time - last_spam_time[username] < 3) then
+            return "Stop spamming commands, " .. username .. ". Try again later."
+        end
+        last_spam_time[username] = current_time  
+    end
+
+    -- Check if the query matches any of the intents and respond via Hugging Face API
+    for intent, patterns in pairs(intent_groups) do
+        for _, pattern in ipairs(patterns) do
+            if string.find(input, pattern) then
+                -- Use Hugging Face for generating a response to any query
+                local botResponse = queryHuggingFace(input)
+                return botResponse
+            end
+        end
+    end
+
+    return "Input unclear."
+end
+
+-- Listen for chat messages
+local function listenForChat()
+    sendMessage("Klien online.")
+    while true do
+        local event, username, message = os.pullEvent("chat")
+        message = message:lower()
+
+        if message == "klien" then
+            sendMessage("Yes, " .. username .. "?")
+        elseif string.sub(message, 1, 6) == "klien " then
+            local query = string.sub(message, 7)
+            local response = getIntent(query, username)
+            if response then
+                sendMessage(response)
+            end
+        end
+    end
+end
+
+print(bot_name .. " is active. Listening for chat...")
+listenForChat()
 
 -- Wrap the disk drive peripheral (right side)
 local diskDrive = peripheral.wrap("right")  
